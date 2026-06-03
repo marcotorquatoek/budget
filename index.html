@@ -130,7 +130,7 @@ body.panel-open{overflow:hidden}
 <div class="header">
   <div class="header-left">Saldo <span class="sync-dot" id="sync-dot"></span></div>
   <div class="header-right">
-    <span class="version-badge">v13</span>
+    <span class="version-badge">v14</span>
     <button class="theme-btn" id="theme-btn" onclick="toggleTheme()">🌙</button>
     <div class="avatar-btn" onclick="openNameModal()" style="cursor:pointer" id="avatar-btn">M</div>
   </div>
@@ -634,7 +634,8 @@ window.printPDF=function(){
     const pdfName="Riepilogo_"+p.name+"_"+todayStr()+".pdf";
     const blob=doc.output("blob");
     const url=URL.createObjectURL(blob);
-    if(navigator.share&&navigator.canShare){
+    const isMobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if(isMobile&&navigator.share&&navigator.canShare){
       const file=new File([blob],pdfName,{type:"application/pdf"});
       if(navigator.canShare({files:[file]})){navigator.share({title:"Riepilogo "+p.name,files:[file]}).catch(()=>{});return;}
     }
