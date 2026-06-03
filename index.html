@@ -64,6 +64,9 @@ body.panel-open{overflow:hidden}
 .debt-row{display:flex;align-items:flex-start;gap:12px;padding:13px 24px;border-bottom:1px solid var(--border)}
 .debt-check{width:22px;height:22px;border-radius:50%;border:2px solid var(--border2);background:transparent;flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:11px;font-weight:700;color:#000;margin-top:2px}
 .debt-check.done{background:var(--green);border-color:var(--green)}
+.debt-check.partial{background:var(--orange,#ff9f0a);border-color:var(--orange,#ff9f0a);color:#000}
+.debt-row.partial-row .debt-desc{color:var(--text)}
+.debt-partial-info{font-size:11px;color:var(--orange,#ff9f0a);margin-top:3px;font-weight:600}
 .debt-text{flex:1;min-width:0}
 .debt-desc{font-size:15px;color:var(--text);word-break:break-word}
 .debt-meta{font-size:12px;color:var(--text3);margin-top:3px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -130,7 +133,7 @@ body.panel-open{overflow:hidden}
 <div class="header">
   <div class="header-left">Saldo <span class="sync-dot" id="sync-dot"></span></div>
   <div class="header-right">
-    <span class="version-badge">v14</span>
+    <span class="version-badge">v19</span>
     <button class="theme-btn" id="theme-btn" onclick="toggleTheme()">🌙</button>
     <div class="avatar-btn" onclick="openNameModal()" style="cursor:pointer" id="avatar-btn">M</div>
   </div>
@@ -167,7 +170,10 @@ body.panel-open{overflow:hidden}
       <input class="date-input" id="new-date" type="date">
       <button class="panel-add-btn" onclick="addDebt()">Aggiungi voce</button>
     </div>
-    <button class="pdf-btn" onclick="printPDF()">🖨️ Stampa riepilogo PDF</button>
+    <div style="display:flex;gap:8px;margin:12px 24px 0">
+      <button class="pdf-btn" style="margin:0;flex:1" onclick="printPDF()">🖨️ PDF</button>
+      <button class="pdf-btn" style="margin:0;flex:1" onclick="exportXLS()">📊 Excel</button>
+    </div>
     <div class="ded-toggle" onclick="toggleDed()">
       <span class="ded-toggle-label">Da sottrarre</span>
       <span class="ded-toggle-amt" id="ded-total-label">−0,00€</span>
@@ -286,8 +292,9 @@ function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").repl
 function saveAll(){setSyncing();supaSave(D).then(setSynced).catch(e=>{console.error("Save error",e);setSynced();});}
 function calcPerson(p){
   const debts=p.debts||[];
-  const receive=debts.filter(d=>!d.paid&&d.dir==="receive").reduce((s,d)=>s+d.amount,0);
-  const give=debts.filter(d=>!d.paid&&d.dir==="give").reduce((s,d)=>s+d.amount,0);
+  function residuoDebt(d){const tot=(d.acconti||[]).reduce((s,a)=>s+a,0);return Math.max(0,d.amount-tot);}
+  const receive=debts.filter(d=>!d.paid&&d.dir==="receive").reduce((s,d)=>s+residuoDebt(d),0);
+  const give=debts.filter(d=>!d.paid&&d.dir==="give").reduce((s,d)=>s+residuoDebt(d),0);
   const ded=(p.deductions||[]).reduce((s,d)=>s+d.amount,0);
   return{receive,give,ded,net:receive-give-ded};
 }
@@ -409,7 +416,42 @@ function renderPanel(){
             '<button class="edit-cancel-btn" onclick="cancelEdit()">Annulla</button>'+
             '</div></div>';
         }
-        return '<div class="debt-row'+(d.paid?" paid-row":"")+'"><div class="debt-check'+(d.paid?" done":"")+ '" onclick="window._togglePaid('+di+')">'+(d.paid?"✓":"")+'</div><div class="debt-text"><div class="debt-desc">'+esc(d.desc)+'</div><div class="debt-meta"><span>'+fmt(d.amount)+'</span><span class="debt-dir-tag '+(d.dir==="give"?"tag-give":"tag-receive")+'">'+(d.dir==="give"?"devo dare":"mi deve")+'</span></div>'+(d.date?'<div class="debt-date">'+fmtDate(d.date)+'</div>':"")+'</div><div class="debt-actions"><button class="debt-action-btn" onclick="startEdit('+di+')">✏️</button><button class="debt-action-btn" onclick="window._delDebt('+di+')">✕</button></div></div>';
+                var rowClass="debt-row"+(d.paid?" paid-row":d.partial?" partial-row":"");
+        var checkClass="debt-check"+(d.paid?" done":d.partial?" partial":"");
+        var checkIcon=d.paid?"✓":d.partial?"½":"";
+
+        var accontiList=d.acconti||[];
+        var totAcc=accontiList.reduce(function(s,a){return s+a;},0);
+        var residuo=Math.max(0,d.amount-totAcc);
+        var partialInfo="";
+        if(d.paid && accontiList.length){
+          partialInfo='<div style="margin-top:4px">'+
+            accontiList.map(function(a,ai){
+              return '<div style="font-size:11px;color:var(--border2);padding:1px 0">Saldo '+(ai+1)+': '+fmt(a)+'</div>';
+            }).join("")+
+            (accontiList.length>1?'<div style="font-size:11px;color:var(--border2)">Totale: '+fmt(totAcc)+'</div>':"")+
+            '</div>';
+        } else if(d.partial||d.enteringAcconto){
+          var accontiRows=accontiList.map(function(a,ai){
+            return '<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--text3);padding:1px 0">'+
+              '<span>Acconto '+(ai+1)+': <b style="color:#ff9f0a">'+fmt(a)+'</b></span>'+
+              '<button onclick="window._delAcconto('+di+','+ai+')" style="background:none;border:none;color:var(--text4);cursor:pointer;padding:0 2px;font-size:11px">x</button>'+
+              '</div>';
+          }).join("");
+          var inputRow=d.enteringAcconto?
+            '<div style="display:flex;align-items:center;gap:6px;margin-top:4px">'+
+            '<input id="acconto-input-'+di+'" type="number" step="0.01" min="0.01"'+
+            ' style="width:80px;background:var(--bg3);border:1px solid #ff9f0a;border-radius:6px;padding:3px 6px;color:var(--text);font-size:13px;font-family:inherit"'+
+            ' placeholder="acconto...">'+
+            '<button onclick="window._saveAcconto('+di+')" style="background:#ff9f0a;border:none;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:600;color:#000;cursor:pointer">+</button>'+
+            '<button onclick="window._cancelAcconto('+di+')" style="background:var(--bg3);border:none;border-radius:6px;padding:3px 8px;font-size:12px;color:var(--text3);cursor:pointer">x</button>'+
+            '</div>':"";
+          partialInfo='<div style="margin-top:5px">'+
+            accontiRows+inputRow+
+            (accontiList.length?'<div style="font-size:11px;margin-top:3px;color:#ff9f0a;font-weight:600">Residuo: '+fmt(residuo)+'</div>':"")+
+            '</div>';
+        }
+        return '<div class="'+rowClass+'"><div class="'+checkClass+'" onclick="window._togglePaid('+di+')">'+checkIcon+'</div><div class="debt-text"><div class="debt-desc">'+esc(d.desc)+'</div><div class="debt-meta"><span>'+fmt(d.amount)+'</span><span class="debt-dir-tag '+(d.dir==="give"?"tag-give":"tag-receive")+'">'+(d.dir==="give"?"devo dare":"mi deve")+'</span></div>'+partialInfo+(d.date?'<div class="debt-date">'+fmtDate(d.date)+'</div>':"")+'</div><div class="debt-actions"><button class="debt-action-btn" onclick="startEdit('+di+')">✏️</button><button class="debt-action-btn" onclick="window._delDebt('+di+')">✕</button></div></div>';
       }).join("")+(showHistory && paidDebts.length ? '<div style="padding:10px 24px;text-align:center"><span style="font-size:13px;color:var(--text3);cursor:pointer;text-decoration:underline" onclick="toggleHistory()">Nascondi pagati</span></div>' : (!showHistory && paidDebts.length ? '<div style="padding:10px 24px;text-align:center"><span style="font-size:13px;color:var(--text3);cursor:pointer;text-decoration:underline" onclick="toggleHistory()">Mostra pagati ('+paidDebts.length+')</span></div>' : ''));
     }
   }
@@ -422,9 +464,46 @@ function renderPanel(){
 }
 
 // Debt actions
+function getResiduo(d){var tot=(d.acconti||[]).reduce(function(s,a){return s+a;},0);return Math.max(0,d.amount-tot);}
 window._togglePaid=function(di){
   if(activePi<0)return;
-  D.persons[activePi].debts[di].paid=!D.persons[activePi].debts[di].paid;
+  const d=D.persons[activePi].debts[di];
+  if(d.paid){
+    // paid → open: reset everything
+    d.paid=false; d.partial=false; d.acconti=undefined; d.enteringAcconto=false;
+    saveAll();renderPanel();renderList();
+  } else {
+    // open/partial → show acconto input
+    d.enteringAcconto=true;
+    renderPanel();
+    setTimeout(function(){var el=document.getElementById("acconto-input-"+di);if(el){el.focus();}},50);
+  }
+};
+window._saveAcconto=function(di){
+  if(activePi<0)return;
+  const d=D.persons[activePi].debts[di];
+  const el=document.getElementById("acconto-input-"+di);
+  if(!el)return;
+  const acc=parseFloat(el.value.replace(",","."));
+  if(isNaN(acc)||acc<=0){el.style.borderColor="#ff453a";return;}
+  if(!d.acconti)d.acconti=[];
+  d.acconti.push(Math.round(acc*100)/100);
+  d.enteringAcconto=false;
+  const residuo=getResiduo(d);
+  if(residuo<=0){d.paid=true;d.partial=false;}
+  else{d.partial=true;}
+  saveAll();renderPanel();renderList();
+};
+window._cancelAcconto=function(di){
+  if(activePi<0)return;
+  D.persons[activePi].debts[di].enteringAcconto=false;
+  renderPanel();
+};
+window._delAcconto=function(di,ai){
+  if(activePi<0)return;
+  const d=D.persons[activePi].debts[di];
+  d.acconti.splice(ai,1);
+  if(!d.acconti.length){d.partial=false;}
   saveAll();renderPanel();renderList();
 };
 window._delDebt=function(di){
@@ -452,10 +531,10 @@ function saveEdit(di){
   const amt=parseFloat(document.getElementById("edit-amt").value);
   const date=document.getElementById("edit-date").value;
   if(!desc||isNaN(amt)||amt<=0)return;
-  D.persons[activePi].debts[di].desc=desc;
-  D.persons[activePi].debts[di].amount=amt;
-  D.persons[activePi].debts[di].dir=editDir;
-  D.persons[activePi].debts[di].date=date;
+  const debt=D.persons[activePi].debts[di];
+  debt.desc=desc; debt.amount=amt; debt.dir=editDir; debt.date=date;
+  // if amount changed and partial, reset partial if acconto >= new amount
+  if(debt.partial && debt.acconto>=amt){debt.partial=false;debt.paid=true;debt.acconto=undefined;}
   editingDi=-1;
   saveAll();renderPanel();renderList();
 }
@@ -530,6 +609,51 @@ window.confirmAddPerson=function(){
 };
 document.getElementById("modal-overlay").addEventListener("click",function(e){if(e.target===this)window.closeModal();});
 
+// EXCEL EXPORT
+window.exportXLS=function(){
+  if(activePi<0)return;
+  const p=D.persons[activePi];
+  const{receive,give,ded,net}=calcPerson(p);
+  const debts=[...(p.debts||[])].sort((a,b)=>(a.date||"") < (b.date||"") ? 1 : -1);
+  const deds=p.deductions||[];
+
+  // Build CSV with BOM for Excel italian locale
+  const BOM="﻿";
+  let rows=[];
+  rows.push(["Riepilogo - "+p.name]);
+  rows.push([]);
+  rows.push(["Mi devono dare", fmt(receive), "Devo dare", fmt(give), "Netto", fmt(net)]);
+  rows.push([]);
+  rows.push(["DATA","DESCRIZIONE","TIPO","IMPORTO","STATO","ACCONTO","RESIDUO"]);
+  debts.forEach(d=>{
+    var accontiTot=(d.acconti||[]).reduce(function(s,a){return s+a;},0);
+    var statoXls=d.paid?"Pagato":d.partial?"Parziale":"Aperto";
+    var accontoXls=d.partial?accontiTot.toFixed(2).replace(".",","):"";
+    var residuoXls=d.partial?(d.amount-accontiTot).toFixed(2).replace(".",","):"";
+    rows.push([
+      d.date ? fmtDate(d.date) : "",
+      d.desc,
+      d.dir==="give" ? "Devo dare" : "Mi devono",
+      d.amount.toFixed(2).replace(".",","),
+      statoXls,
+      accontoXls,
+      residuoXls
+    ]);
+  });
+  if(deds.length){
+    rows.push([]);
+    rows.push(["DA SOTTRARRE",""]);
+    rows.push(["DESCRIZIONE","IMPORTO"]);
+    deds.forEach(d=>rows.push([d.label, d.amount.toFixed(2).replace(".",",")]));
+  }
+
+    const csv=BOM+rows.map(function(r){return r.map(function(c){var v=String(c).replace(/"/g,"");return '"'+v+'"';}).join(";");}).join("\r\n");
+  const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;a.download="Riepilogo_"+p.name+"_"+todayStr()+".csv";a.click();
+};
+
 // PDF PRINT
 window.printPDF=function(){
   if(activePi<0)return;
@@ -598,7 +722,8 @@ window.printPDF=function(){
         checkPage();
         const alpha=faded?120:20;
         doc.setFontSize(9);doc.setFont("helvetica","normal");doc.setTextColor(alpha,alpha,alpha);
-        const lines=doc.splitTextToSize(d.desc,88);doc.text(lines,L,y);
+        var pdfAccTot=(d.acconti||[]).reduce(function(s,a){return s+a;},0);var pdfDesc=d.desc+(d.partial?" [Acconto: "+fmt(pdfAccTot)+" · Residuo: "+fmt(d.amount-pdfAccTot)+"]":"");
+        const lines=doc.splitTextToSize(pdfDesc,88);doc.text(lines,L,y);
         doc.setFontSize(8);doc.setTextColor(faded?160:130,faded?160:130,faded?160:130);
         doc.text(fmtDate(d.date||""),L+95,y);
         const typeLabel=d.dir==="give"?"devo dare":"mi deve";
