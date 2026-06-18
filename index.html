@@ -133,7 +133,7 @@ body.panel-open{overflow:hidden}
 <div class="header">
   <div class="header-left">Saldo <span class="sync-dot" id="sync-dot"></span></div>
   <div class="header-right">
-    <span class="version-badge">v20</span>
+    <span class="version-badge">v22</span>
     <button class="theme-btn" id="theme-btn" onclick="toggleTheme()">🌙</button>
     <div class="avatar-btn" onclick="openNameModal()" style="cursor:pointer" id="avatar-btn">M</div>
   </div>
@@ -327,6 +327,7 @@ function renderList(){
 
 function openPanel(pi){
   activePi=pi;addDir="receive";editingDi=-1;
+  if(D.persons[pi])D.persons[pi].showHistory=false;
   renderPanel();
   document.getElementById("panel-overlay").classList.add("open");
   panel.classList.add("open");panel.style.transform="";lockScroll();
@@ -394,7 +395,8 @@ function renderPanel(){
   } else {
     const visibleDebts=showHistory?debts:openDebtsPanel;
     if(!visibleDebts.length){
-      dl.innerHTML='<div style="padding:16px 24px;font-size:14px;color:var(--text4)">Nessuna voce aperta.</div>';
+      dl.innerHTML='<div style="padding:16px 24px;font-size:14px;color:var(--text4)">Nessuna voce aperta.</div>'+
+        (paidDebts.length?'<div style="padding:4px 24px 10px;text-align:center"><span style="font-size:13px;color:var(--text3);cursor:pointer;text-decoration:underline" onclick="toggleHistory()">Mostra pagati ('+paidDebts.length+')</span></div>':"");
     } else {
       dl.innerHTML=visibleDebts.map(function(d){
         const di=d._origIdx;
