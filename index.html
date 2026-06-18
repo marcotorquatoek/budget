@@ -133,7 +133,7 @@ body.panel-open{overflow:hidden}
 <div class="header">
   <div class="header-left">Saldo <span class="sync-dot" id="sync-dot"></span></div>
   <div class="header-right">
-    <span class="version-badge">v19</span>
+    <span class="version-badge">v20</span>
     <button class="theme-btn" id="theme-btn" onclick="toggleTheme()">🌙</button>
     <div class="avatar-btn" onclick="openNameModal()" style="cursor:pointer" id="avatar-btn">M</div>
   </div>
@@ -220,18 +220,18 @@ body.panel-open{overflow:hidden}
 
 <script>
 // ── SUPABASE CONFIG ──────────────────────────────────────────────
-const SUPA_URL = "https://owplxbkptrdmcwziinhg.supabase.co";
-const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im93cGx4YmtwdHJkbWN3emlpbmhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3MjEwNTMsImV4cCI6MjA5MTI5NzA1M30.SGI5gk-vZlUuqb9zYyZun4RojD8Dg4axrmBZQzD-tQU";
+const SUPA_URL = "https://zdwzombpaixkcryfpkxg.supabase.co";
+const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpkd3pvbWJwYWl4a2NyeWZwa3hnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MzczMTAsImV4cCI6MjA5NzMxMzMxMH0.ttAPvk-kV_BWC8RH43eVNXsN6HglLIQhp0rieWwjGPw";
 const SUPA_HEADERS = {"Content-Type":"application/json","apikey":SUPA_KEY,"Authorization":"Bearer "+SUPA_KEY};
 
 async function supaLoad(){
-  const r = await fetch(SUPA_URL+"/rest/v1/debiti?id=eq.main&select=data", {headers: SUPA_HEADERS});
+  const r = await fetch(SUPA_URL+"/rest/v1/debiti_data?id=eq.main&select=data", {headers: SUPA_HEADERS});
   if(!r.ok) throw new Error("HTTP "+r.status);
   const rows = await r.json();
   return rows.length ? rows[0].data : {persons:[]};
 }
 async function supaSave(data){
-  const r = await fetch(SUPA_URL+"/rest/v1/debiti?id=eq.main", {
+  const r = await fetch(SUPA_URL+"/rest/v1/debiti_data?id=eq.main", {
     method:"PATCH",
     headers:{...SUPA_HEADERS,"Prefer":"return=minimal"},
     body: JSON.stringify({data, updated_at: new Date().toISOString()})
